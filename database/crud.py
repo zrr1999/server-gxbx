@@ -69,9 +69,21 @@ def open_box(db: Session, Box_ID: str):
         db.flush()
         db.refresh(db_box)
         print("open the box")
-    return db.query(models.Box).filter_by(
+    return db_box
+
+
+def close_box(db: Session, Box_ID: str, stop:bool=False):
+    db_box = db.query(models.Box).filter_by(
         Box_ID=Box_ID
-    ).all()
+    ).first()
+    if db_box:
+        db_box.Box_State = False
+        db_box.Box_isOccupied = not stop
+        db.commit()
+        db.flush()
+        db.refresh(db_box)
+        print("close the box")
+    return db_box
 
 
 def query_orders(db: Session, User_ID: str):
@@ -89,7 +101,7 @@ def query_current_order(db: Session, User_ID: str, skip: int = 0, limit: int = 1
 
 def query_box(db: Session, User_ID: str, skip: int = 0, limit: int = 100):
     db_order = query_current_order(db, User_ID, skip, limit)
-    if db_order.Box_ID and db_order.box.Box_isOccupied:
+    if db_order and db_order.Box_ID and db_order.box.Box_isOccupied:
         return db_order.box
 
 
@@ -116,6 +128,7 @@ def close_order(db: Session, Order_ID: str):
         db.commit()
         db.flush()
         db.refresh(db_order)
+        close_box(db, db_order.Box_ID, stop=True)
     return db_order
 
 
