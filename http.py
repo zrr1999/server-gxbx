@@ -5,15 +5,12 @@
 # @File : main.py
 # @desc : 本代码未经授权禁止商用
 from typing import List
-
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
-
 from database import crud, models, schemas
 from database.database import SessionLocal, engine
 
 models.Base.metadata.create_all(bind=engine)
-
 app = FastAPI()
 
 
