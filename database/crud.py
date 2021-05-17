@@ -7,6 +7,9 @@
 import datetime
 from sqlalchemy.orm import Session
 from database import models, schemas
+from mqtt import connect, subscribe, publish
+connect()
+subscribe()
 
 
 def get_user(db: Session, name: str):
@@ -58,6 +61,12 @@ def get_boxes(db: Session, User_ID: str, skip: int = 0, limit: int = 100):
     ).all()
 
 
+def get_box(db: Session, Box_ID: str, skip: int = 0, limit: int = 100):
+    return db.query(models.Box).offset(skip).limit(limit).filter_by(
+        Box_ID=Box_ID
+    ).first()
+
+
 def open_box(db: Session, Box_ID: str):
     db_box = db.query(models.Box).filter_by(
         Box_ID=Box_ID
@@ -68,11 +77,12 @@ def open_box(db: Session, Box_ID: str):
         db.commit()
         db.flush()
         db.refresh(db_box)
+        publish(db_box.Fridge_ID, Box_ID)
         print("open the box")
     return db_box
 
 
-def close_box(db: Session, Box_ID: str, stop:bool=False):
+def close_box(db: Session, Box_ID: str, stop: bool=False):
     db_box = db.query(models.Box).filter_by(
         Box_ID=Box_ID
     ).first()
@@ -92,17 +102,27 @@ def query_orders(db: Session, User_ID: str):
     ).first().orders
 
 
-def query_current_order(db: Session, User_ID: str, skip: int = 0, limit: int = 100):
-    db_order = db.query(models.Order).filter_by(
+def query_current_orders(db: Session, User_ID: str, skip: int = 0, limit: int = 100):
+    db_orders = db.query(models.Order).filter_by(
         User_ID=User_ID, Order_End_Time=None
-    ).offset(skip).limit(limit).first()
-    return db_order
+    ).offset(skip).limit(limit).all()
+    return db_orders
 
 
-def query_box(db: Session, User_ID: str, skip: int = 0, limit: int = 100):
-    db_order = query_current_order(db, User_ID, skip, limit)
-    if db_order and db_order.Box_ID and db_order.box.Box_isOccupied:
-        return db_order.box
+def query_boxes(db: Session, User_ID: str, skip: int = 0, limit: int = 100):
+    db_orders = query_current_orders(db, User_ID, skip, limit)
+    boxes = []
+    for db_order in db_orders:
+        if db_order.Box_ID and db_order.box.Box_isOccupied:
+            boxes.append(db_order.box)
+    return boxes
+
+
+def query_user_box_order(db: Session, User_ID: str, Box_ID: str, skip: int = 0, limit: int = 100):
+    db_orders = query_current_orders(db, User_ID, skip, limit)
+    for db_order in db_orders:
+        if db_order.Box_ID and Box_ID == db_order.Box_ID and db_order.box.Box_isOccupied:
+            return db_order
 
 
 def create_order(db: Session, User_ID: str, Box_ID: str, Order_Type: bool = True):

@@ -63,7 +63,7 @@ def update_user(user_id: int, update_user: schemas.UserUpdate, db: Session = Dep
 
 @app.get("/rent/start", response_model=schemas.Order)
 def rent_start(User_ID: str, Fridge_ID: str, db: Session = Depends(get_db)):
-    if crud.query_box(db, User_ID):
+    if crud.query_boxes(db, User_ID):
         raise HTTPException(status_code=502, detail="用户有正在进行的订单")
     db_box = crud.get_empty_box(db, Fridge_ID)
     if db_box is None:
@@ -75,31 +75,32 @@ def rent_start(User_ID: str, Fridge_ID: str, db: Session = Depends(get_db)):
 
 
 @app.get("/rent/open", response_model=schemas.Box)
-def rent_open(User_ID: str, db: Session = Depends(get_db)):
-    db_box = crud.query_box(db, User_ID)
-    if db_box is None:
-        raise HTTPException(status_code=404, detail="未找到正在进行的订单")
+def rent_open(User_ID: str, Box_ID: str, db: Session = Depends(get_db)):
+    db_order = crud.query_user_box_order(db, User_ID, Box_ID)
+    if db_order:
+        crud.open_box(db, db_order.box.Box_ID)
+        return db_order.box
     else:
-        return db_box
+        raise HTTPException(status_code=404, detail="未找到指定订单")
 
 
 @app.get("/rent/stop", response_model=schemas.Order)
-def rent_stop(User_ID: str, db: Session = Depends(get_db)):
-    db_order = crud.query_current_order(db, User_ID)
-    if db_order is None:
-        raise HTTPException(status_code=404, detail="未找到正在进行的订单")
-    else:
+def rent_stop(User_ID: str, Box_ID: str, db: Session = Depends(get_db)):
+    db_order = crud.query_user_box_order(db, User_ID, Box_ID)
+    if db_order:
         crud.close_order(db, db_order.Order_ID)
         return db_order
-
-
-@app.get("/query/box", response_model=schemas.Box)
-def query_box(User_ID: str, db: Session = Depends(get_db)):
-    db_box = crud.query_box(db, User_ID)
-    if db_box is None:
-        raise HTTPException(status_code=404, detail="未找到正在进行的订单")
     else:
-        return db_box
+        raise HTTPException(status_code=404, detail="未找到指定订单")
+
+
+@app.get("/query/box", response_model=List[schemas.Box])
+def query_box(User_ID: str, db: Session = Depends(get_db)):
+    db_boxes = crud.query_boxes(db, User_ID)
+    if db_boxes:
+        return db_boxes
+    else:
+        raise HTTPException(status_code=404, detail="未找到正在进行的订单")
 
 
 @app.get("/query/order", response_model=List[schemas.Order])
@@ -109,3 +110,10 @@ def query_orders(User_ID: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="未找到用户订单")
     else:
         return db_order
+
+
+if __name__ == '__main__':
+    import uvicorn
+
+    # uvicorn server_http:app --host 172.17.0.2 --port 7474
+    uvicorn.run(app)
